@@ -14,7 +14,7 @@ def buildInjector():
 
     line = logger.readline();
     while line != '':
-      injector.write(line);
+      injector.write(line.replace('\\', '\\\\'));
       line = logger.readline();
 
     injector.write("  `);\n");

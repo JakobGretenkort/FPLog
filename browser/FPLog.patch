@@ -1,0 +1,721 @@
+diff --git a/dom/base/Document.h b/dom/base/Document.h
+index 6ee07c9fa207..1fe58bcc3de7 100644
+--- a/dom/base/Document.h
++++ b/dom/base/Document.h
+@@ -3333,6 +3333,11 @@ class Document : public nsINode,
+   already_AddRefed<Event> CreateEvent(const nsAString& aEventType,
+                                       CallerType aCallerType,
+                                       ErrorResult& rv) const;
++  already_AddRefed<Event> CreateEventFPLog(const nsAString& aEventType,
++                                      CallerType aCallerType,
++                                      ErrorResult& rv) const {
++    return CreateEvent(aEventType, aCallerType, rv);                                    
++  }
+   already_AddRefed<nsRange> CreateRange(ErrorResult& rv);
+   already_AddRefed<NodeIterator> CreateNodeIterator(nsINode& aRoot,
+                                                     uint32_t aWhatToShow,
+diff --git a/dom/base/Navigator.cpp b/dom/base/Navigator.cpp
+index f95f80032aad..90eeb3dc2ce4 100644
+--- a/dom/base/Navigator.cpp
++++ b/dom/base/Navigator.cpp
+@@ -112,6 +112,14 @@
+ 
+ #include "mozilla/intl/LocaleService.h"
+ 
++#include "nsString.h"
++
++#include "fplog.h"
++#include <locale>
++#include <codecvt>
++#include <string>
++#include <sstream>
++
+ namespace mozilla::dom {
+ 
+ static const nsLiteralCString kVibrationPermissionType = "vibration"_ns;
+@@ -518,6 +526,26 @@ StorageManager* Navigator::Storage() {
+   return mStorageManager;
+ }
+ 
++void Navigator::LogFPLog(const nsAString& aObj, const nsAString& aAccessed,
++                         const nsAString& aParameters) {
++  std::stringstream ssObj, ssAccessed, ssParameters; 
++  
++  ssObj << aObj;
++  ssAccessed << aAccessed;
++  ssParameters << aParameters;
++
++  fplog::log(ssObj.str(), ssAccessed.str(), ssParameters.str());
++}
++
++void Navigator::LogURLFPLog(const nsAString& aURL, const nsAString& aReferrer) {
++  std::stringstream ssURL, ssReferrer;
++  
++  ssURL << aURL;
++  ssReferrer << aReferrer;
++  
++  fplog::logURL(ssURL.str(), ssReferrer.str());
++}
++
+ bool Navigator::CookieEnabled() {
+   bool cookieEnabled = (nsICookieManager::GetCookieBehavior() !=
+                         nsICookieService::BEHAVIOR_REJECT);
+diff --git a/dom/base/Navigator.h b/dom/base/Navigator.h
+index 99be251bf05a..8bdd4c6eea7b 100644
+--- a/dom/base/Navigator.h
++++ b/dom/base/Navigator.h
+@@ -179,6 +179,10 @@ class Navigator final : public nsISupports, public nsWrapperCache {
+   MediaDevices* GetMediaDevices(ErrorResult& aRv);
+ 
+   void GetGamepads(nsTArray<RefPtr<Gamepad>>& aGamepads, ErrorResult& aRv);
++  void GetGamepadsFPLog(nsTArray<RefPtr<Gamepad>>& aGamepads, 
++                        ErrorResult& aRv) {
++    return GetGamepads(aGamepads, aRv);
++  }
+   GamepadServiceTest* RequestGamepadServiceTest();
+   already_AddRefed<Promise> GetVRDisplays(ErrorResult& aRv);
+   void FinishGetVRDisplays(bool isWebVRSupportedInwindow, Promise* p);
+@@ -220,10 +224,16 @@ class Navigator final : public nsISupports, public nsWrapperCache {
+   void GetLanguages(nsTArray<nsString>& aLanguages);
+ 
+   StorageManager* Storage();
++  StorageManager* StorageFPLog() {return Storage();}
++  
++  void LogFPLog(const nsAString& aObj, const nsAString& aAccessed,
++                const nsAString& aParameters);
++  void LogURLFPLog(const nsAString& aURL, const nsAString& aReferrer);
+ 
+   static void GetAcceptLanguages(nsTArray<nsString>& aLanguages);
+ 
+   dom::MediaCapabilities* MediaCapabilities();
++  dom::MediaCapabilities* MediaCapabilitiesFPLog() {return MediaCapabilities();}
+   dom::MediaSession* MediaSession();
+ 
+   AddonManager* GetMozAddonManager(ErrorResult& aRv);
+diff --git a/dom/base/moz.build b/dom/base/moz.build
+index 46615cbded3f..6888f5064fdc 100644
+--- a/dom/base/moz.build
++++ b/dom/base/moz.build
+@@ -10,6 +10,8 @@ with Files("*Selection*"):
+ with Files("**"):
+     BUG_COMPONENT = ("Core", "DOM: Core & HTML")
+ 
++USE_LIBS += ['fplog']
++
+ TEST_DIRS += ["test"]
+ 
+ XPIDL_SOURCES += [
+@@ -514,6 +516,7 @@ LOCAL_INCLUDES += [
+     "/dom/xml",
+     "/dom/xslt/xpath",
+     "/dom/xul",
++    "/fplog",
+     "/gfx/2d",
+     "/image",
+     "/js/xpconnect/loader",
+diff --git a/dom/base/nsGlobalWindowInner.cpp b/dom/base/nsGlobalWindowInner.cpp
+index 3c96c632bd93..cec92132c023 100644
+--- a/dom/base/nsGlobalWindowInner.cpp
++++ b/dom/base/nsGlobalWindowInner.cpp
+@@ -343,6 +343,8 @@ using mozilla::TimeStamp;
+ using mozilla::dom::GamepadHandle;
+ using mozilla::dom::cache::CacheStorage;
+ 
++#include "fplog.h"
++
+ #define FORWARD_TO_OUTER(method, args, err_rval)                     \
+   PR_BEGIN_MACRO                                                     \
+   nsGlobalWindowOuter* outer = GetOuterWindowInternal();             \
+@@ -4558,6 +4560,8 @@ already_AddRefed<nsICSSDeclaration> nsGlobalWindowInner::GetComputedStyleHelper(
+ }
+ 
+ Storage* nsGlobalWindowInner::GetSessionStorage(ErrorResult& aError) {
++  fplog::log("window", "sessionStorage");
++
+   nsIPrincipal* principal = GetPrincipal();
+   nsIPrincipal* storagePrincipal = GetEffectiveStoragePrincipal();
+   BrowsingContext* browsingContext = GetBrowsingContext();
+@@ -4679,6 +4683,8 @@ Storage* nsGlobalWindowInner::GetSessionStorage(ErrorResult& aError) {
+ }
+ 
+ Storage* nsGlobalWindowInner::GetLocalStorage(ErrorResult& aError) {
++  fplog::log("window", "localStorage");
++
+   if (!Storage::StoragePrefIsEnabled()) {
+     return nullptr;
+   }
+@@ -4837,6 +4843,7 @@ Storage* nsGlobalWindowInner::GetLocalStorage(ErrorResult& aError) {
+ }
+ 
+ IDBFactory* nsGlobalWindowInner::GetIndexedDB(ErrorResult& aError) {
++  fplog::log("window", "indexedDB");
+   if (!mIndexedDB) {
+     // This may keep mIndexedDB null without setting an error.
+     auto res = IDBFactory::CreateForWindow(this);
+diff --git a/dom/base/nsGlobalWindowInner.h b/dom/base/nsGlobalWindowInner.h
+index cbbf1f885fab..a3270fbb70aa 100644
+--- a/dom/base/nsGlobalWindowInner.h
++++ b/dom/base/nsGlobalWindowInner.h
+@@ -741,6 +741,12 @@ class nsGlobalWindowInner final : public mozilla::dom::EventTarget,
+   already_AddRefed<mozilla::dom::MediaQueryList> MatchMedia(
+       const nsAString& aQuery, mozilla::dom::CallerType aCallerType,
+       mozilla::ErrorResult& aError);
++  already_AddRefed<mozilla::dom::MediaQueryList> MatchMediaFPLog(
++      const nsAString& aQuery, mozilla::dom::CallerType aCallerType,
++      mozilla::ErrorResult& aError) {
++    return MatchMedia(aQuery, aCallerType, aError);    
++  }   
++  
+   nsScreen* GetScreen(mozilla::ErrorResult& aError);
+   void MoveTo(int32_t aXPos, int32_t aYPos,
+               mozilla::dom::CallerType aCallerType,
+diff --git a/dom/html/HTMLCanvasElement.cpp b/dom/html/HTMLCanvasElement.cpp
+index 521bd0aaa8dd..f43f9b85b4b3 100644
+--- a/dom/html/HTMLCanvasElement.cpp
++++ b/dom/html/HTMLCanvasElement.cpp
+@@ -52,6 +52,8 @@
+ #include "VRManagerChild.h"
+ #include "ClientWebGLContext.h"
+ 
++#include "fplog.h"
++
+ using namespace mozilla::layers;
+ using namespace mozilla::gfx;
+ 
+@@ -369,7 +371,9 @@ HTMLCanvasElement::HTMLCanvasElement(
+     : nsGenericHTMLElement(std::move(aNodeInfo)),
+       mResetLayer(true),
+       mMaybeModified(false),
+-      mWriteOnly(false) {}
++      mWriteOnly(false) {
++    fplog::log("canvas", "ctor");
++  }
+ 
+ HTMLCanvasElement::~HTMLCanvasElement() {
+   if (mContextObserver) {
+diff --git a/dom/html/HTMLCanvasElement.h b/dom/html/HTMLCanvasElement.h
+index aaaecd0abc49..09303a725332 100644
+--- a/dom/html/HTMLCanvasElement.h
++++ b/dom/html/HTMLCanvasElement.h
+@@ -168,14 +168,29 @@ class HTMLCanvasElement final : public nsGenericHTMLElement,
+   virtual already_AddRefed<nsISupports> GetContext(
+       JSContext* aCx, const nsAString& aContextId,
+       JS::Handle<JS::Value> aContextOptions, ErrorResult& aRv) override;
++  already_AddRefed<nsISupports> GetContextFPLog(
++      JSContext* aCx, const nsAString& aContextId,
++      JS::Handle<JS::Value> aContextOptions, ErrorResult& aRv) {
++    return GetContext(aCx, aContextId, aContextOptions, aRv);    
++  }
+ 
+   void ToDataURL(JSContext* aCx, const nsAString& aType,
+                  JS::Handle<JS::Value> aParams, nsAString& aDataURL,
+                  nsIPrincipal& aSubjectPrincipal, ErrorResult& aRv);
++  void ToDataURLFPLog(JSContext* aCx, const nsAString& aType,
++                 JS::Handle<JS::Value> aParams, nsAString& aDataURL,
++                 nsIPrincipal& aSubjectPrincipal, ErrorResult& aRv) {
++    return ToDataURL(aCx, aType, aParams, aDataURL, aSubjectPrincipal, aRv);               
++  }
+ 
+   void ToBlob(JSContext* aCx, BlobCallback& aCallback, const nsAString& aType,
+               JS::Handle<JS::Value> aParams, nsIPrincipal& aSubjectPrincipal,
+               ErrorResult& aRv);
++  void ToBlobFPLog(JSContext* aCx, BlobCallback& aCallback, 
++              const nsAString& aType, JS::Handle<JS::Value> aParams, 
++              nsIPrincipal& aSubjectPrincipal, ErrorResult& aRv) {
++    return ToBlob(aCx, aCallback, aType, aParams, aSubjectPrincipal, aRv);            
++  }
+ 
+   OffscreenCanvas* TransferControlToOffscreen(ErrorResult& aRv);
+ 
+diff --git a/dom/html/moz.build b/dom/html/moz.build
+index 32da1462414d..ba03581aae62 100644
+--- a/dom/html/moz.build
++++ b/dom/html/moz.build
+@@ -246,6 +246,7 @@ LOCAL_INCLUDES += [
+     "/dom/media",
+     "/dom/security",
+     "/dom/xul",
++    "/fplog",
+     "/image",
+     "/layout/forms",
+     "/layout/generic",
+diff --git a/dom/media/webaudio/AudioContext.cpp b/dom/media/webaudio/AudioContext.cpp
+index 2dd35925026d..16337c6074b7 100644
+--- a/dom/media/webaudio/AudioContext.cpp
++++ b/dom/media/webaudio/AudioContext.cpp
+@@ -80,6 +80,8 @@
+ #include "StereoPannerNode.h"
+ #include "WaveShaperNode.h"
+ 
++#include "fplog.h"
++
+ extern mozilla::LazyLogModule gAutoplayPermissionLog;
+ 
+ #define AUTOPLAY_LOG(msg, ...) \
+@@ -168,6 +170,8 @@ AudioContext::AudioContext(nsPIDOMWindowInner* aWindow, bool aIsOffline,
+       mWasEverAllowedToStart(false),
+       mWasEverBlockedToStart(false),
+       mWouldBeAllowedToStart(true) {
++  fplog::log("AudioContext", "ctor");    
++  
+   bool mute = aWindow->AddAudioContext(this);
+ 
+   // Note: AudioDestinationNode needs an AudioContext that must already be
+diff --git a/dom/media/webaudio/moz.build b/dom/media/webaudio/moz.build
+index 8d04ecb7cb09..06ac91e7ff17 100644
+--- a/dom/media/webaudio/moz.build
++++ b/dom/media/webaudio/moz.build
+@@ -122,6 +122,10 @@ UNIFIED_SOURCES += [
+     "WebAudioUtils.cpp",
+ ]
+ 
++LOCAL_INCLUDES += [
++    "/fplog",
++]
++
+ if CONFIG["CPU_ARCH"] == "aarch64" or CONFIG["BUILD_ARM_NEON"]:
+     DEFINES["USE_NEON"] = True
+     SOURCES += ["AudioNodeEngineNEON.cpp"]
+diff --git a/dom/media/webspeech/synth/SpeechSynthesis.h b/dom/media/webspeech/synth/SpeechSynthesis.h
+index 05c90e704148..75c0c207b94e 100644
+--- a/dom/media/webspeech/synth/SpeechSynthesis.h
++++ b/dom/media/webspeech/synth/SpeechSynthesis.h
+@@ -58,6 +58,9 @@ class SpeechSynthesis final : public DOMEventTargetHelper,
+   void OnEnd(const nsSpeechTask* aTask);
+ 
+   void GetVoices(nsTArray<RefPtr<SpeechSynthesisVoice> >& aResult);
++  void GetVoicesFPLog(nsTArray<RefPtr<SpeechSynthesisVoice> >& aResult) {
++    return GetVoices(aResult);
++  }
+ 
+   void ForceEnd();
+ 
+diff --git a/dom/moz.build b/dom/moz.build
+index 9989f502ddb2..e075c45da8d3 100644
+--- a/dom/moz.build
++++ b/dom/moz.build
+@@ -13,6 +13,8 @@ with Files("plugins/**"):
+ 
+ JAR_MANIFESTS += ["jar.mn"]
+ 
++
++
+ interfaces = [
+     "base",
+     "html",
+diff --git a/dom/webidl/Document.webidl b/dom/webidl/Document.webidl
+index 8312501260d9..f179f40f263a 100644
+--- a/dom/webidl/Document.webidl
++++ b/dom/webidl/Document.webidl
+@@ -96,6 +96,8 @@ interface Document : Node {
+ 
+   [NewObject, Throws, NeedsCallerType]
+   Event createEvent(DOMString interface);
++  [NewObject, Throws, NeedsCallerType]
++  Event createEventFPLog(DOMString interface);
+ 
+   [NewObject, Throws]
+   Range createRange();
+diff --git a/dom/webidl/HTMLCanvasElement.webidl b/dom/webidl/HTMLCanvasElement.webidl
+index dbb23168b8a2..3ca5cede8f9f 100644
+--- a/dom/webidl/HTMLCanvasElement.webidl
++++ b/dom/webidl/HTMLCanvasElement.webidl
+@@ -24,14 +24,23 @@ interface HTMLCanvasElement : HTMLElement {
+ 
+   [Throws]
+   nsISupports? getContext(DOMString contextId, optional any contextOptions = null);
++  [Throws]
++  nsISupports? getContextFPLog(DOMString contextId, optional any contextOptions = null);
+ 
+   [Throws, NeedsSubjectPrincipal]
+   DOMString toDataURL(optional DOMString type = "",
+                       optional any encoderOptions);
+   [Throws, NeedsSubjectPrincipal]
++  DOMString toDataURLFPLog(optional DOMString type = "",
++                      optional any encoderOptions);
++  [Throws, NeedsSubjectPrincipal]
+   void toBlob(BlobCallback callback,
+               optional DOMString type = "",
+               optional any encoderOptions);
++  [Throws, NeedsSubjectPrincipal]
++  void toBlobFPLog(BlobCallback callback,
++              optional DOMString type = "",
++              optional any encoderOptions);
+ };
+ 
+ // Mozilla specific bits
+diff --git a/dom/webidl/Navigator.webidl b/dom/webidl/Navigator.webidl
+index 5382bc56c8c6..bd7084c5388e 100644
+--- a/dom/webidl/Navigator.webidl
++++ b/dom/webidl/Navigator.webidl
+@@ -93,6 +93,9 @@ interface mixin NavigatorContentUtils {
+ interface mixin NavigatorStorage {
+   [Pref="dom.storageManager.enabled"]
+   readonly attribute StorageManager storage;
++  
++    [Pref="dom.storageManager.enabled"]
++  readonly attribute StorageManager storageFPLog;
+ };
+ 
+ interface mixin NavigatorStorageUtils {
+@@ -100,6 +103,12 @@ interface mixin NavigatorStorageUtils {
+   //void yieldForStorageUpdates();
+ };
+ 
++// FPLog
++partial interface Navigator {
++  void logFPLog(DOMString obj, DOMString access, DOMString parameters);
++  void logURLFPLog(DOMString URL, DOMString referrer);
++};
++
+ partial interface Navigator {
+   [Throws]
+   readonly attribute Permissions permissions;
+@@ -152,6 +161,9 @@ partial interface Navigator {
+ partial interface Navigator {
+   [SameObject, Func="mozilla::dom::MediaCapabilities::Enabled"]
+   readonly attribute MediaCapabilities mediaCapabilities;
++  
++  [SameObject, Func="mozilla::dom::MediaCapabilities::Enabled"]
++  readonly attribute MediaCapabilities mediaCapabilitiesFPLog;
+ };
+ 
+ // Mozilla-specific extensions
+@@ -202,6 +214,9 @@ partial interface Navigator {
+ partial interface Navigator {
+   [Throws, Pref="dom.gamepad.enabled"]
+   sequence<Gamepad?> getGamepads();
++  
++  [Throws, Pref="dom.gamepad.enabled"]
++  sequence<Gamepad?> getGamepadsFPLog();
+ };
+ partial interface Navigator {
+   [Pref="dom.gamepad.test.enabled"]
+diff --git a/dom/webidl/SpeechSynthesis.webidl b/dom/webidl/SpeechSynthesis.webidl
+index 6353317ffeed..dc52e65b6bfe 100644
+--- a/dom/webidl/SpeechSynthesis.webidl
++++ b/dom/webidl/SpeechSynthesis.webidl
+@@ -22,6 +22,7 @@ interface SpeechSynthesis : EventTarget{
+   void pause();
+   void resume();
+   sequence<SpeechSynthesisVoice> getVoices();
++  sequence<SpeechSynthesisVoice> getVoicesFPLog();
+ 
+   attribute EventHandler onvoiceschanged;
+ 
+diff --git a/dom/webidl/Window.webidl b/dom/webidl/Window.webidl
+index 14b28e5b3c36..97c88f7069bd 100644
+--- a/dom/webidl/Window.webidl
++++ b/dom/webidl/Window.webidl
+@@ -324,6 +324,8 @@ dictionary ScrollToOptions : ScrollOptions {
+ partial interface Window {
+   //[Throws, NewObject, NeedsCallerType] MediaQueryList matchMedia(DOMString query);
+   [Throws, NewObject, NeedsCallerType] MediaQueryList? matchMedia(DOMString query);
++  
++  [Throws, NewObject, NeedsCallerType] MediaQueryList? matchMediaFPLog(DOMString query);
+   // Per spec, screen is SameObject, but we don't actually guarantee that given
+   // nsGlobalWindow::Cleanup.  :(
+   //[SameObject, Replaceable, Throws] readonly attribute Screen screen;
+diff --git a/dom/workers/WorkerNavigator.h b/dom/workers/WorkerNavigator.h
+index df8206254948..6be897fc2ed6 100644
+--- a/dom/workers/WorkerNavigator.h
++++ b/dom/workers/WorkerNavigator.h
+@@ -96,6 +96,7 @@ class WorkerNavigator final : public nsWrapperCache {
+   uint64_t HardwareConcurrency() const;
+ 
+   StorageManager* Storage();
++  StorageManager* StorageFPLog() {return Storage();}
+ 
+   network::Connection* GetConnection(ErrorResult& aRv);
+ 
+diff --git a/fplog/fplog.cpp b/fplog/fplog.cpp
+new file mode 100644
+index 000000000000..bafc0fa4eb90
+--- /dev/null
++++ b/fplog/fplog.cpp
+@@ -0,0 +1,152 @@
++#include "fplog.h"
++
++#include <fstream>
++
++#include <chrono>
++
++#include <deque>
++#include <set>
++
++#include <sys/types.h>
++#include <unistd.h>
++
++namespace chr = std::chrono;
++
++namespace fplog {
++
++  constexpr char LOG_PATH[] = "/home/ba/fplog/";
++  constexpr char ACCESS_LOG[] = "access/";
++  constexpr char URL_LOG[] = "url/";
++  constexpr char FONT_LOG[] = "font/";
++  constexpr char FILE_EXT[] = ".csv";
++  constexpr char SEPARATOR = ',';
++  
++  enum logtype : unsigned char {
++    access,
++    url,
++    font
++  };
++  
++  typedef std::deque<std::string> datapoint;
++  typedef std::set<datapoint> dataset;
++  
++  std::string get_path(logtype t) {
++    static std::string log_path(LOG_PATH);
++    static std::string access_log(ACCESS_LOG);
++    static std::string url_log(URL_LOG);
++    static std::string font_log(FONT_LOG);
++    static std::string ext(FILE_EXT);
++    static pid_t pid = getpid();
++    
++    std::string path = log_path;
++    
++    switch(t) {
++      case access: path.append(access_log); break;
++      case url: path.append(url_log); break;
++      case font: path.append(font_log); break;
++    }
++  
++    //path.append(std::to_string(pid));
++    path.append("data");
++    path.append(ext);
++    
++    return path;
++  }
++  
++  datapoint& host(datapoint *newHost) {
++    static datapoint oldHost = datapoint();
++    if (newHost != nullptr) {
++      oldHost = *newHost;
++    }
++    return oldHost;
++  }
++  
++  void logLine(const datapoint &dp, std::ofstream &logfile) {
++    auto now = chr::steady_clock::now().time_since_epoch();
++    auto ms = chr::duration_cast<chr::milliseconds>(now).count();
++    
++    logfile << std::to_string(ms);
++    
++    datapoint& _host = host(nullptr);
++    for (auto iter = std::cbegin(_host); iter != std::cend(_host); iter++) {
++      logfile << SEPARATOR;
++      logfile << "\"";
++      logfile << *iter;
++      logfile << "\"";
++    }
++    
++    for (auto iter = std::cbegin(dp); iter != std::cend(dp); iter++) {
++      logfile << SEPARATOR;
++      logfile << "\"";
++      logfile << *iter;
++      logfile << "\"";
++    }
++    
++    logfile << std::endl;
++  }
++  
++  void logLines(const dataset &values, std::string path) { 
++    std::ofstream logfile(path, std::ofstream::out | std::ofstream::app);
++    
++    for(const datapoint &dp : values) {
++      logLine(dp, logfile);
++    }
++  }
++  
++  dataset& addData(datapoint *dp) {
++    static dataset data = dataset();
++    if(dp != nullptr) {
++      data.insert(*dp);
++    }
++    return data;
++  }
++  
++  void flushDataLog() {
++    std::string logpath = get_path(logtype::access);
++    
++    dataset &data = addData(nullptr);
++    logLines(data, logpath);
++    data.clear();
++  }
++  
++  void log(const std::string object, const std::string accessed, 
++           const std::string parameters) {   
++    datapoint dp({object, accessed, parameters});
++    addData(&dp);
++  }
++  
++  dataset& addFont(const datapoint *fontname) {
++    static dataset fonts = dataset();
++    if(fontname != nullptr) {
++      fonts.insert(*fontname);
++    }
++    return fonts;
++  }
++  
++  void flushFontLog() {
++    std::string logpath = get_path(logtype::font);
++    
++    dataset& fonts = addFont(nullptr);
++    logLines(fonts, logpath);
++    fonts.clear();
++  }
++  
++  void logFont(const std::string& fontname, unsigned int alt_index) {    
++    datapoint font({fontname, std::to_string(alt_index)});
++    addFont(&font);
++  }
++ 
++  void logURL(const std::string url, const std::string referrer) {    
++    flushDataLog();
++    flushFontLog();
++    
++    datapoint _host({url, referrer});
++    host(&_host);
++    
++    std::string logpath = get_path(logtype::url);
++    std::ofstream logfile(logpath, std::ofstream::out | std::ofstream::app);
++    
++    logLine({}, logfile);
++  }
++  
++} // fplog
+diff --git a/fplog/fplog.h b/fplog/fplog.h
+new file mode 100644
+index 000000000000..53294058d627
+--- /dev/null
++++ b/fplog/fplog.h
+@@ -0,0 +1,15 @@
++#ifndef FPLOG_H
++#define FPLOG_H
++
++#include <string>
++
++namespace fplog {
++  void log(const std::string object, const std::string accessed, 
++           const std::string parameters = "");
++           
++  void logFont(const std::string& fontname, unsigned int alt_index);
++  
++  void logURL(const std::string url, const std::string referrer);
++} // fplog
++
++#endif // FPLOG_H
+diff --git a/fplog/moz.build b/fplog/moz.build
+new file mode 100644
+index 000000000000..bd8f807e04e0
+--- /dev/null
++++ b/fplog/moz.build
+@@ -0,0 +1,14 @@
++Library('fplog')
++
++EXPORTS += [
++    "fplog.h",
++]
++
++SOURCES += [
++  "fplog.cpp",
++]
++
++LOCAL_INCLUDES += [
++  "/fplog",
++]
++
+diff --git a/layout/generic/moz.build b/layout/generic/moz.build
+index 53a389b44a46..cc2180e31b1a 100644
+--- a/layout/generic/moz.build
++++ b/layout/generic/moz.build
+@@ -268,6 +268,7 @@ LOCAL_INCLUDES += [
+     "/dom/base",
+     "/dom/html",
+     "/dom/xul",
++    "/fplog",
+ ]
+ 
+ JAR_MANIFESTS += ["jar.mn"]
+diff --git a/layout/generic/nsIFrame.cpp b/layout/generic/nsIFrame.cpp
+index d1438e0c2f19..83bd943c62b1 100644
+--- a/layout/generic/nsIFrame.cpp
++++ b/layout/generic/nsIFrame.cpp
+@@ -129,6 +129,9 @@
+ 
+ #include "nsITheme.h"
+ 
++#include "fplog.h"
++#include <sstream>
++
+ using namespace mozilla;
+ using namespace mozilla::css;
+ using namespace mozilla::dom;
+@@ -618,6 +621,25 @@ static void MaybeScheduleReflowSVGNonDisplayText(nsIFrame* aFrame) {
+   svgTextFrame->ScheduleReflowSVGNonDisplayText(IntrinsicDirty::StyleChange);
+ }
+ 
++void nsIFrame::FPLogFonts() const {
++  //Unpack font list
++  const nsStyleFont* sf = mComputedStyle->StyleFont();
++  const nsFont f = sf->mFont;
++  const mozilla::FontFamilyList &fl = f.fontlist;
++  const mozilla::NotNull<mozilla::SharedFontList*> sfl = fl.GetFontlist();
++  const nsTArray<mozilla::FontFamilyName> &names = sfl->mNames;
++  
++  nsString fontname;
++  for (unsigned int i = 0; i < names.Length(); i++) {
++    if (names[i].IsNamed()) {
++      std::stringstream ss = std::stringstream();
++      names[i].mName->ToString(fontname);
++      ss << fontname;
++      fplog::logFont(ss.str(), i);
++    }
++  }
++}
++
+ bool nsIFrame::IsPrimaryFrameOfRootOrBodyElement() const {
+   if (!IsPrimaryFrame()) {
+     return false;
+diff --git a/layout/generic/nsIFrame.h b/layout/generic/nsIFrame.h
+index 77fd333e78e1..5974054cfffa 100644
+--- a/layout/generic/nsIFrame.h
++++ b/layout/generic/nsIFrame.h
+@@ -699,9 +699,12 @@ class nsIFrame : public nsQueryFrame {
+     MOZ_ASSERT(mPresContext);
+     mozilla::PodZero(&mOverflow);
+     MOZ_COUNT_CTOR(nsIFrame);
++    FPLogFonts();
+   }
+   explicit nsIFrame(ComputedStyle* aStyle, nsPresContext* aPresContext)
+       : nsIFrame(aStyle, aPresContext, ClassID::nsIFrame_id) {}
++      
++  void FPLogFonts() const;
+ 
+   nsPresContext* PresContext() const { return mPresContext; }
+ 
+@@ -897,6 +900,7 @@ class nsIFrame : public nsQueryFrame {
+       AssertNewStyleIsSane(*aStyle);
+       RefPtr<ComputedStyle> oldComputedStyle = std::move(mComputedStyle);
+       mComputedStyle = aStyle;
++      FPLogFonts();
+       DidSetComputedStyle(oldComputedStyle);
+     }
+   }
+diff --git a/toolkit/toolkit.mozbuild b/toolkit/toolkit.mozbuild
+index bbc3c98e4885..c9510978f75e 100644
+--- a/toolkit/toolkit.mozbuild
++++ b/toolkit/toolkit.mozbuild
+@@ -19,6 +19,10 @@ CONFIGURE_SUBST_FILES += [
+     '/tools/update-packaging/Makefile',
+ ]
+ 
++DIRS += [
++    '/fplog',
++]
++
+ DIRS += [
+     '/tools',
+     '/xpcom/xpidl',

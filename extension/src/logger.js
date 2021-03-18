@@ -1,5 +1,11 @@
-function logAccess(object_name, property_name) {
-  console.log(object_name, property_name);
+function logURL() {
+  console.log(window.location.href, document.referrer);
+  navigator.logURLFPLog(window.location.href, document.referrer);
+}
+
+function logAccess(object, accessed, param = '') {
+  //console.log(object, accessed, param);
+  navigator.logFPLog(object, accessed, param);
 }
 
 function propertyLogger(object_name, property_name, value) {
@@ -42,7 +48,7 @@ function registerAllCanvas() {
   }
 
   HTMLCanvasElement.prototype.getContext = function(contextType, ...args) {
-    logAccess("HTMLCanvasElement.prototype", "getContext(" + contextType + ")");
+    logAccess("HTMLCanvasElement.prototype", "getContext", contextType);
     return this.getContextFPLog(contextType, ...args);
   }
 }
@@ -118,28 +124,29 @@ function registerAllNavigator() {
 
 function registerAllScreen() {
   let availHeight = window.screen.availHeight;
-  registerPropertyLogger('window.screen', 'availHeight', window.screen, availHeight);
+  registerPropertyLogger('screen', 'availHeight', window.screen, availHeight);
 
   let availWidth = window.screen.availWidth;
-  registerPropertyLogger('window.screen', 'availWidth', window.screen, availWidth);
+  registerPropertyLogger('screen', 'availWidth', window.screen, availWidth);
 
   let width = window.screen.width;
-  registerPropertyLogger('window.screen', 'width', window.screen, width);
+  registerPropertyLogger('screen', 'width', window.screen, width);
 
   let height = window.screen.height;
-  registerPropertyLogger('window.screen', 'height', window.screen, height);
+  registerPropertyLogger('screen', 'height', window.screen, height);
 
   let colorDepth = window.screen.colorDepth;
-  registerPropertyLogger('window.screen', 'colorDepth', window.screen, colorDepth);
+  registerPropertyLogger('screen', 'colorDepth', window.screen, colorDepth);
 
   let pixelDepth = window.screen.pixelDepth;
-  registerPropertyLogger('window.screen', 'pixelDepth', window.screen, pixelDepth);
+  registerPropertyLogger('screen', 'pixelDepth', window.screen, pixelDepth);
 }
 
 function registerAllDocument() {
   registerFunctionLogger('document', 'createEvent', document, (type) => {
-    if(type.trim().toLowerCase() == 'touchevent') {
-      logAccess('document', 'createEvent("touchevent")');
+    cleantype = type.trim().toLowerCase();
+    if(cleantype == 'touchevent') {
+      logAccess('document', 'createEvent', cleantype);
     }
     return document.createEventFPLog(type);
   });
@@ -172,5 +179,8 @@ function registerAll() {
   registerAllWindow();
 }
 
+logURL();
+
 registerAll();
 
+window.addEventListener('beforeunload', () => {logURL()})

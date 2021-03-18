@@ -9,7 +9,7 @@ Follow this tutorial: https://firefox-source-docs.mozilla.org/setup/linux_build.
 
 ## Apply Patch
 The patch file provided in the browser directory is based on a particular version of the firefox repo.
-To create a new branch in your repo which is rolled back to that version, use `git checkout -b fplog afe4a81b755`.
+To create a new branch in your repo which is rolled back to that version, use `git checkout -b fplog afe4a81b75570060a6fff08e88bca33a34636b60`.
 
 Now you can apply the patch file from this repo. Copy it into your firefox repo and run `git apply browser_mod.patch`.
 

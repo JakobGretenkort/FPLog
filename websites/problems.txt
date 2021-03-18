@@ -1,0 +1,5 @@
+twitter.com rejects our requests with code 400
+googleusercontent.com appears in the list, but is only relevant due to its subdomains
+bit.ly redirects to bitly.com
+myshopify.com reports 404 on / (it uses subdomains for individual shops)
+foursquare.com recognizes the crawler as a bot

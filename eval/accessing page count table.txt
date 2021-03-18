@@ -1,0 +1,52 @@
+\begin{table}[h]
+\begin{tabular}{lll}
+Surface                       & Parameter             & Websites \\ \hline
+AudioContext constructor      &                       & 227      \\
+canvas constructor            &                       & 4320     \\
+document.createEvent          & touchevent            & 467      \\
+body.clientWidth              &                       & 6755     \\
+documentElement.clientWidth   &                       & 8824     \\
+canvas.getContext             & 2d                    & 2978     \\
+canvas.getContext             & bitmaprenderer        & 177      \\
+canvas.getContext             & experimental-webgl    & 445      \\
+canvas.getContext             & experimental-webgl2   & 177      \\
+canvas.getContext             & moz-webgl             & 22       \\
+canvas.getContext             & webgl                 & 2159     \\
+canvas.getContext             & webgl2                & 205      \\
+canvas.getContext             & webkit-3d             & 18       \\
+canvas.toDataURL              &                       & 1648     \\
+navigator.appCodeName         &                       & 732      \\
+navigator.appName             &                       & 4354     \\
+navigator.appVersion          &                       & 7040     \\
+navigator.buildId             &                       & 13       \\
+navigator.cookieEnabled       &                       & 5554     \\
+navigator.cpuClass            &                       & 1101     \\
+navigator.doNotTrack          &                       & 3988     \\
+navigator.getGamepads         &                       & 175      \\
+navigator.hardwareConcurrency &                       & 1838     \\
+navigator.language            &                       & 8134     \\
+navigator.languages           &                       & 2557     \\
+navigator.maxTouchPoints      &                       & 3155     \\
+navigator.mediaCapabilities   &                       & 474      \\
+navigator.oscpu               &                       & 628      \\
+navigator.platform            &                       & 6062     \\
+navigator.plugins             &                       & 8232     \\
+navigator.productSub          &                       & 903      \\
+navigator.storage             &                       & 375      \\
+navigator.userAgent           &                       & 9980     \\
+navigator.vendor              &                       & 4223     \\
+navigator.vendorSub           &                       & 584      \\
+navigator.webdriver           &                       & 1978     \\
+screen.availHeight            &                       & 4655     \\
+screen.availWidth             &                       & 4691     \\
+screen.colorDepth             &                       & 8086     \\
+screen.height                 &                       & 9123     \\
+screen.pixelDepth             &                       & 1307     \\
+screen.width                  &                       & 9155     \\
+speechSynthesis.getVoices     &                       & 451      \\
+window.indexedDB              &                       & 2918     \\
+window.localStorage           &                       & 8414     \\
+window.matchMedia             &                       & 4105     \\
+window.sessionStorage         &                       & 6895     \\
+\end{tabular}
+\end{table}

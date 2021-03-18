@@ -1,0 +1,91 @@
+===== TODO =====================================================================
+
+# Worker Navigator
+
+# Cookie Acceptance
+  # Creation of a cookie
+  https://github.com/fingerprintjs/fingerprintjs/blob/master/src/sources/cookies_enabled.ts
+
+# AudioContext
+  # On Creation/Access of Element
+  https://github.com/fingerprintjs/fingerprintjs/blob/master/src/sources/audio.ts
+
+# Touch screen availability
+  document.createEvent('TouchEvent')
+    # Throws exception if not on device with touchscreen
+  # The following all work even if there is no touchscreen, they are therefore
+  # not interesting for fingerprinting
+    window.TouchEvent
+    new TouchEvent
+    new Touch
+  https://github.com/fingerprintjs/fingerprintjs/blob/master/src/sources/touch_support.ts
+
+# Touch screen availability
+  if ('ontouchstart' in window)
+
+# Timezone
+  # In theory, timezoneoffset could also be found by simply getting a timestamp
+  # and sending it to the server where it is compared to UTC.
+    Date.now()
+    new Date()
+      # /js/src/jsdate.cpp
+      .getTime()
+      .getHours() & .getDay()
+        => Creation of Date object basically leaks timestamp
+  new Date().getTimezoneOffset()
+    # /js/src/jsdate.cpp
+  Intl.DateTimeFormat().resolvedOptions().timeZone
+    # /js/src/builtin/intl/DateTimeFormat.js
+    # ResolvedOptions returns a dict.
+
+# Fonts
+  # How do I detect changes to css font property?
+
+# Others:
+  # This only reads info on browser version
+    getBattery in Navigator
+
+===== IMPOSSIBLE ===============================================================
+
+# Language
+  navigator.systemLanguage
+    # IE Only
+
+# DB
+  window.openDatabase
+    # Not supported by Firefox
+
+# Navigator.deviceMemory
+  deviceMemory
+    # Not supported by Firefox
+
+# Adblock / Noscript detection
+  # Seems impossible to detect from my end
+
+Simple differences between Browser APIs can be used to identify browser!
+
+===== MORE IDEAS ===============================================================
+https://assets.alicdn.com/g/secdev/sufei_data/3.9.1/index.js
+https://www.google-analytics.com/analytics.js
+https://yandex.ru/ AND https://mail.ru/
+  https://mc.yandex.ru/metrika/watch.js
+  https://mc.yandex.ru/metrika/tag.js
+https://g.alicdn.com/secdev/sufei_data/3.9.1/index.js
+https://www.aliexpress.com/
+  # WEBGL
+  https://assets.alicdn.com/g/ae-fe-user-growth/web-push-client/0.0.1/ae-sw.js
+  https://assets.alicdn.com/g/ae-fe/home-ui/0.0.49/vendors~index-TbYbF.js
+https://www.uol.com.br/
+  # Audio Fingerprinting
+  https://dna.uol.com.br/js/dna.min.js
+https://www.iqiyi.com/
+  # WEBGL
+  https://security.iqiyi.com/static/cook/v1/cooksdk.js
+  https://stc.iqiyipic.com/js/pingback/qa.js
+taboola.com
+  https://assets.trendemon.com/global/fingerprint.min.js
+cnn.com
+  # Is this FP??
+  https://static.adsafeprotected.com/sca.17.4.114.js
+https://global.jd.com/
+  https://gias.jd.com/js/td.js
