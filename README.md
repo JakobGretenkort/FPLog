@@ -34,5 +34,5 @@ If you want to have FPLog visit websites automatically, you will need to install
 # Usage
 At this point, you can simply visit a site with FPLog to generate logfiles which show what javascript APIs the visited site makes access to. The logfiles can be found at the location configured in the 'Build Firefox' step.
 
-If you want to have a list of websites visited automatically, you may put a csv with the columns index (int) and url in the automation folder, adjust the path of the BINARY constant in the script 'selenium_script.py' and run that script with 'python3 selenium_script.py'. 
+If you want to have a list of websites visited automatically, you may put a csv with the columns index (int) and url in the automation folder, adjust the path of the BINARY constant in the script 'selenium_script.py' and run that script with `python3 selenium_script.py`. 
 
